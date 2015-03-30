@@ -75,6 +75,12 @@ struct _GstConcatPadClass
   GstPadClass parent;
 };
 
+enum
+{
+  SIGNAL_PAD_SWITCH,
+  LAST_SIGNAL
+};
+
 G_DEFINE_TYPE (GstConcatPad, gst_concat_pad, GST_TYPE_PAD);
 
 static void
@@ -129,6 +135,8 @@ static gboolean gst_concat_src_query (GstPad * pad, GstObject * parent,
 
 static gboolean gst_concat_switch_pad (GstConcat * self);
 
+static guint gst_concat_signals[LAST_SIGNAL] = { 0 };
+
 static void
 gst_concat_class_init (GstConcatClass * klass)
 {
@@ -151,6 +159,20 @@ gst_concat_class_init (GstConcatClass * klass)
       GST_DEBUG_FUNCPTR (gst_concat_request_new_pad);
   gstelement_class->release_pad = GST_DEBUG_FUNCPTR (gst_concat_release_pad);
   gstelement_class->change_state = GST_DEBUG_FUNCPTR (gst_concat_change_state);
+
+  /**
+   * GstConcat::pad-switch:
+   * @element: the concat instance
+   * @old_pad: the pad that is was actived
+   * @new_pad: the pad that is being actived
+   *
+   * This signal gets emitted after the switch.
+   */
+   gst_concat_signals[SIGNAL_PAD_SWITCH] =
+      g_signal_new ("pad-switch", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstConcatClass, pad_switch), NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 2,
+      GST_TYPE_PAD, GST_TYPE_PAD);
 }
 
 static void
@@ -371,6 +393,9 @@ gst_concat_switch_pad (GstConcat * self)
   gboolean next;
   GstSegment segment;
   gint64 last_stop;
+  GstPad *old_pad;
+  GstPad *old_pad_peer = NULL;
+  GstPad *new_pad_peer = NULL;
 
   segment = GST_CONCAT_PAD (self->current_sinkpad)->segment;
 
@@ -395,18 +420,40 @@ gst_concat_switch_pad (GstConcat * self)
   for (l = self->sinkpads; l; l = l->next) {
     if ((gpointer) self->current_sinkpad == l->data) {
       l = l->prev;
+
+      old_pad = self->current_sinkpad;
+
       GST_DEBUG_OBJECT (self,
           "Switching from pad %" GST_PTR_FORMAT " to %" GST_PTR_FORMAT,
           self->current_sinkpad, l ? l->data : NULL);
       gst_object_unref (self->current_sinkpad);
       self->current_sinkpad = l ? gst_object_ref (l->data) : NULL;
+
+      old_pad_peer = gst_pad_get_peer (old_pad);
+
+      if (self->current_sinkpad) {
+        new_pad_peer = gst_pad_get_peer (self->current_sinkpad);
+      }
+
+      g_signal_emit (self,
+          gst_concat_signals[SIGNAL_PAD_SWITCH], 0, old_pad_peer,
+          new_pad_peer);
+
+      g_object_unref (old_pad_peer);
+
+      if (new_pad_peer) {
+        g_object_unref (new_pad_peer);
+      }
+
+      old_pad_peer = NULL;
+      new_pad_peer = NULL;
+
       g_cond_broadcast (&self->cond);
       break;
     }
   }
 
   next = self->current_sinkpad != NULL;
-
   self->last_stop = GST_CLOCK_TIME_NONE;
 
   return next;

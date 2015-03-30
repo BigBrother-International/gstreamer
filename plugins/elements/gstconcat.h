@@ -64,6 +64,9 @@ struct _GstConcat
 struct _GstConcatClass
 {
   GstElementClass parent_class;
+
+  /* signals */
+  void (*pad_switch) (GstElement *element, GstPad *old_pad, GstPad *new_pad);
 };
 
 G_GNUC_INTERNAL GType gst_concat_get_type (void);
