@@ -123,6 +123,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_file_src_debug);
 enum
 {
   /* FILL ME */
+  SIGNAL_EOF,
   LAST_SIGNAL
 };
 
@@ -157,6 +158,8 @@ static void gst_file_src_uri_handler_init (gpointer g_iface,
   GST_DEBUG_CATEGORY_INIT (gst_file_src_debug, "filesrc", 0, "filesrc element");
 #define gst_file_src_parent_class parent_class
 G_DEFINE_TYPE_WITH_CODE (GstFileSrc, gst_file_src, GST_TYPE_BASE_SRC, _do_init);
+
+static guint gst_file_src_signals[LAST_SIGNAL] = { 0 };
 
 static void
 gst_file_src_class_init (GstFileSrcClass * klass)
@@ -193,6 +196,15 @@ gst_file_src_class_init (GstFileSrcClass * klass)
   gstbasesrc_class->is_seekable = GST_DEBUG_FUNCPTR (gst_file_src_is_seekable);
   gstbasesrc_class->get_size = GST_DEBUG_FUNCPTR (gst_file_src_get_size);
   gstbasesrc_class->fill = GST_DEBUG_FUNCPTR (gst_file_src_fill);
+
+  /**
+   * GstFileSrc::eof:
+   * @element: the filesrc instance
+   */
+   gst_file_src_signals[SIGNAL_EOF] =
+      g_signal_new ("eof", G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GstFileSrcClass, eof), NULL, NULL,
+      g_cclosure_marshal_generic, G_TYPE_NONE, 0);
 
   if (sizeof (off_t) < 8) {
     GST_LOG ("No large file support, sizeof (off_t) = %" G_GSIZE_FORMAT "!",
@@ -376,6 +388,10 @@ gst_file_src_fill (GstBaseSrc * basesrc, guint64 offset, guint length,
   GST_BUFFER_OFFSET (buf) = offset;
   GST_BUFFER_OFFSET_END (buf) = offset + bytes_read;
 
+  if(src->size == offset + bytes_read) {
+      g_signal_emit (src, gst_file_src_signals[SIGNAL_EOF], 0);
+  }
+
   return GST_FLOW_OK;
 
   /* ERROR */
@@ -426,6 +442,7 @@ gst_file_src_get_size (GstBaseSrc * basesrc, guint64 * size)
     goto could_not_stat;
 
   *size = stat_results.st_size;
+  src->size = stat_results.st_size;
 
   return TRUE;
 
@@ -627,7 +644,7 @@ gst_file_src_uri_set_uri (GstURIHandler * handler, const gchar * uri,
 #ifdef G_OS_WIN32
   /* Unfortunately, g_filename_from_uri() doesn't handle some UNC paths
    * correctly on windows, it leaves them with an extra backslash
-   * at the start if they're of the mozilla-style file://///host/path/file 
+   * at the start if they're of the mozilla-style file://///host/path/file
    * form. Correct this.
    */
   if (location[0] == '\\' && location[1] == '\\' && location[2] == '\\')

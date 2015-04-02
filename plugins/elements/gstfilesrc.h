@@ -57,8 +57,9 @@ struct _GstFileSrc {
   /*< private >*/
   gchar *filename;			/* filename */
   gchar *uri;				/* caching the URI */
-  gint fd;				/* open file descriptor */
-  guint64 read_position;		/* position of fd */
+  gint fd;				    /* open file descriptor */
+  guint64 read_position;	/* position of fd */
+  guint64 size;             /* size of the file in bytes */
 
   gboolean seekable;                    /* whether the file is seekable */
   gboolean is_regular;                  /* whether it's a (symlink to a)
@@ -67,6 +68,9 @@ struct _GstFileSrc {
 
 struct _GstFileSrcClass {
   GstBaseSrcClass parent_class;
+
+  /* signals */
+  void (*eof) (GstElement *element);
 };
 
 G_GNUC_INTERNAL GType gst_file_src_get_type (void);
