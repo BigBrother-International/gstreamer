@@ -357,9 +357,18 @@ debug_dump_describe_caps (GstCaps * caps, GstDebugGraphDetails details)
 
       str = g_string_sized_new (slen);
       for (i = 0; i < gst_caps_get_size (caps); i++) {
+        GstCapsFeatures *features = __gst_caps_get_features_unchecked (caps, i);
         GstStructure *structure = gst_caps_get_structure (caps, i);
 
         g_string_append (str, gst_structure_get_name (structure));
+
+        if (features && (gst_caps_features_is_any (features)
+                || !gst_caps_features_is_equal (features,
+                    GST_CAPS_FEATURES_MEMORY_SYSTEM_MEMORY))) {
+          g_string_append_c (str, '(');
+          priv_gst_caps_features_append_to_gstring (features, str);
+          g_string_append_c (str, ')');
+        }
         g_string_append (str, "\\l");
 
         gst_structure_foreach (structure, string_append_field, (gpointer) str);

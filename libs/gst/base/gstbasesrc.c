@@ -3112,9 +3112,11 @@ gst_base_src_decide_allocation_default (GstBaseSrc * basesrc, GstQuery * query)
   return TRUE;
 
 config_failed:
+  gst_object_unref (pool);
   GST_ELEMENT_ERROR (basesrc, RESOURCE, SETTINGS,
       ("Failed to configure the buffer pool"),
       ("Configuration is most likely invalid, please report this issue."));
+  gst_object_unref (pool);
   return FALSE;
 }
 
@@ -3865,7 +3867,7 @@ failure:
  * @src: a #GstBaseSrc
  *
  * Returns: (transfer full): the instance of the #GstBufferPool used
- * by the src; free it after use it
+ * by the src; unref it after usage.
  */
 GstBufferPool *
 gst_base_src_get_buffer_pool (GstBaseSrc * src)
@@ -3889,7 +3891,7 @@ gst_base_src_get_buffer_pool (GstBaseSrc * src)
  * Lets #GstBaseSrc sub-classes to know the memory @allocator
  * used by the base class and its @params.
  *
- * Unref the @allocator after use it.
+ * Unref the @allocator after usage.
  */
 void
 gst_base_src_get_allocator (GstBaseSrc * src,

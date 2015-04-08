@@ -2355,8 +2355,12 @@ gst_pad_link_full (GstPad * srcpad, GstPad * sinkpad, GstPadLinkCheck flags)
   /* prepare will also lock the two pads */
   result = gst_pad_link_prepare (srcpad, sinkpad, flags);
 
-  if (G_UNLIKELY (result != GST_PAD_LINK_OK))
+  if (G_UNLIKELY (result != GST_PAD_LINK_OK)) {
+    GST_CAT_INFO (GST_CAT_PADS, "link between %s:%s and %s:%s failed: %s",
+        GST_DEBUG_PAD_NAME (srcpad), GST_DEBUG_PAD_NAME (sinkpad),
+        gst_pad_link_get_name (result));
     goto done;
+  }
 
   /* must set peers before calling the link function */
   GST_PAD_PEER (srcpad) = sinkpad;
@@ -2884,7 +2888,7 @@ event_forward_func (GstPad * pad, EventData * data)
  * The EOS event will pause the task associated with @pad before it is forwarded
  * to all internally linked pads,
  *
- * The the event is sent to all pads internally linked to @pad. This function
+ * The event is sent to all pads internally linked to @pad. This function
  * takes ownership of @event.
  *
  * Returns: %TRUE if the event was sent successfully.
@@ -3270,6 +3274,7 @@ probe_hook_marshal (GHook * hook, ProbeMarshall * data)
   GstPadProbeType type, flags;
   GstPadProbeCallback callback;
   GstPadProbeReturn ret;
+  gpointer original_data;
 
   /* if we have called this callback, do nothing */
   if (PROBE_COOKIE (hook) == data->cookie) {
@@ -3283,6 +3288,7 @@ probe_hook_marshal (GHook * hook, ProbeMarshall * data)
 
   flags = hook->flags >> G_HOOK_FLAG_USER_SHIFT;
   type = info->type;
+  original_data = info->data;
 
   /* one of the data types for non-idle probes */
   if ((type & GST_PAD_PROBE_TYPE_IDLE) == 0
@@ -3320,6 +3326,12 @@ probe_hook_marshal (GHook * hook, ProbeMarshall * data)
   ret = callback (pad, info, hook->data);
 
   GST_OBJECT_LOCK (pad);
+
+  if (original_data != NULL && info->data == NULL) {
+    GST_DEBUG_OBJECT (pad, "data item in pad probe info was dropped");
+    info->type = GST_PAD_PROBE_TYPE_INVALID;
+    data->dropped = TRUE;
+  }
 
   switch (ret) {
     case GST_PAD_PROBE_REMOVE:
@@ -4265,7 +4277,8 @@ probe_stopped:
     GST_OBJECT_UNLOCK (pad);
     pad->ABI.abi.last_flowret =
         ret == GST_FLOW_CUSTOM_SUCCESS ? GST_FLOW_OK : ret;
-    gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
+    if (data != NULL)
+      gst_mini_object_unref (GST_MINI_OBJECT_CAST (data));
 
     switch (ret) {
       case GST_FLOW_CUSTOM_SUCCESS:
