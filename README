@@ -1,4 +1,9 @@
-GStreamer 1.5.x development series
+GStreamer 1.5.x development series (BigBrother International Fork)
+
+CHANGES MADE BY BIGBROTHER
+---------
+- added `switch-pad` signal to the `concat` element
+- added `eof` (end-of-file) signal to the `filesrc` element
 
 WHAT IT IS
 ----------
